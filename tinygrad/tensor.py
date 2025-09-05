@@ -1374,7 +1374,7 @@ class Tensor(MathTrait):
           right_pad = dim_size - start - 1
           left_pad = dim_size - vb.shape[dim] - right_pad
           pad = (left_pad, right_pad)
-        pads = (None,) * dim + (pad, ) + (None,) * (self.ndim - dim - 1)
+        pads = (None,) * dim + (pad, ) + (None,) * (vb.ndim - dim - 1)
         vb = vb.pad(pads)
       elif idx is None:
         vb = vb.squeeze(dim)
