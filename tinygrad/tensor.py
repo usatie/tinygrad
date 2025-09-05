@@ -1356,7 +1356,7 @@ class Tensor(MathTrait):
       if isinstance(idx, int):
         pass
       elif isinstance(idx, slice):
-        start, stop, step = idx.indices(dim_size)
+        start, _, step = idx.indices(dim_size)
         if step < 0:
           vb = vb.flip(dim)
         if abs(step) > 1:
