@@ -1300,7 +1300,9 @@ class Tensor(MathTrait):
 
   def gen_mask(self, indices):
     masks = []
-    for dim,(dim_size, idx) in enumerate(zip(self.shape, indices)):
+    dim = 0
+    for idx in indices:
+      dim_size = self.shape[dim] if idx is not None else None
       if isinstance(idx, int):
         # e.g. dim=1, idx=3, shape=(10,20,30,40,50)
         #              () -> (20,) -> (1,20,1,1,1) -> (10,20,30,40,50)
@@ -1317,6 +1319,7 @@ class Tensor(MathTrait):
       else:
         raise NotImplementedError(f"Indexing with {type(idx)} not supported")
       masks.append(mask)
+      dim += 1
     return functools.reduce(lambda x,y: x.mul(y), masks)
 
   """
@@ -1326,19 +1329,22 @@ class Tensor(MathTrait):
   x[:, 3, ..., 1:12:3] = v
   """
   def gen_index_shape(self, indices):
-    indices = list(indices) + [None]*(self.ndim - len(indices))
+    indices = list(indices) + [slice(None)]*(self.ndim - len([i for i in indices if i is not None]))
     res_shape = []
-    for (dim_size, idx) in zip(self.shape, indices):
+    dim = 0
+    for idx in indices:
       if isinstance(idx, int):
         res_shape.append(1)
       elif isinstance(idx, slice):
+        dim_size = self.shape[dim]
         start, stop, step = idx.indices(dim_size)
         size = (abs(stop - start) + abs(step) - 1) // abs(step)
         res_shape.append(size)
       elif idx is None:
-        res_shape.append(dim_size)
+        res_shape.append(1)
       else:
         raise NotImplementedError(f"Indexing with {type(idx)} not supported")
+      if idx is not None: dim += 1
     return tuple(res_shape)
 
   def pad_values(self, v: Tensor, indices):
