@@ -1314,7 +1314,8 @@ class Tensor(MathTrait):
         # Negative start/stop is handled by slice.indices, but negative step could be tricky
         dim_size = self.shape[dim]
         start, stop, step = idx.indices(cast(SupportsIndex, dim_size))
-        mask = Tensor.arange(start, stop, step).unsqueeze(-1)._one_hot_along_dim(dim_size).sum(0).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
+        mask = Tensor.arange(start, stop, step).unsqueeze(-1)._one_hot_along_dim(dim_size).sum(0)
+        mask = mask.reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
       elif idx is None:
         continue
       else:
