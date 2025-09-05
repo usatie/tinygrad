@@ -1354,10 +1354,12 @@ class Tensor(MathTrait):
     # e.g.
     # v.shape = (1, 1, 4, 1) -> (10, 1, 30, 4, 50)
     vb = v._broadcast_to(vshape)
-    for dim,(dim_size, idx) in enumerate(zip(self.shape, indices)):
+    dim = 0
+    for idx in indices:
       if isinstance(idx, int):
         pass
       elif isinstance(idx, slice):
+        dim_size = self.shape[dim]
         start, _, step = idx.indices(cast(SupportsIndex, dim_size))
         if step < 0:
           vb = vb.flip(dim)
@@ -1375,9 +1377,10 @@ class Tensor(MathTrait):
         pads = (None,) * dim + (pad, ) + (None,) * (self.ndim - dim - 1)
         vb = vb.pad(pads)
       elif idx is None:
-        pass
+        vb = vb.squeeze(dim)
       else:
         raise NotImplementedError(f"Indexing with {type(idx)} not supported")
+      if idx is not None: dim += 1
     return vb
 
   def setitem(self: Tensor, indices, v: Tensor):
