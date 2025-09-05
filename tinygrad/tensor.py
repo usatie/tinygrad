@@ -1326,7 +1326,6 @@ class Tensor(MathTrait):
   x[:, 3, ..., 1:12:3] = v
   """
   def gen_index_shape(self, indices):
-    masks = []
     indices = list(indices) + [None]*(self.ndim - len(indices))
     res_shape = []
     for (dim_size, idx) in zip(self.shape, indices):
@@ -1347,7 +1346,6 @@ class Tensor(MathTrait):
     # e.g.
     # v.shape = (1, 1, 4, 1) -> (10, 1, 30, 4, 50)
     vb = v._broadcast_to(vshape)
-    padding = []
     for dim,(dim_size, idx) in enumerate(zip(self.shape, indices)):
       if isinstance(idx, int):
         pass
@@ -1378,7 +1376,6 @@ class Tensor(MathTrait):
     mask = self.gen_mask(indices)
     vb = self.pad_values(v, indices)
     return mask.where(vb, self)
-
 
   def gather(self:Tensor, dim:int, index:Tensor) -> Tensor:
     """
