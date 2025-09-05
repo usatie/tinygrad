@@ -1302,18 +1302,19 @@ class Tensor(MathTrait):
     masks = []
     dim = 0
     for idx in indices:
-      dim_size = self.shape[dim] if idx is not None else None
       if isinstance(idx, int):
         # e.g. dim=1, idx=3, shape=(10,20,30,40,50)
         #              () -> (20,) -> (1,20,1,1,1) -> (10,20,30,40,50)
-        mask = Tensor(idx).one_hot(dim_size).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
+        dim_size = self.shape[dim]
+        mask = Tensor(idx)._one_hot_along_dim(dim_size).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
       elif isinstance(idx, slice):
         # e.g. dim=3, idx=slice(1,12,3) = [1,4,7,10], shape=(10,20,30,40,50)
         #              () -> (4,) -> (4,20) -> (20,) -> (1,20,1,1,1) -> (10,20,30,40,50)
         # TODO: Negative start/stop/step, but mask should be correct
         # Negative start/stop is handled by slice.indices, but negative step could be tricky
-        start, stop, step = idx.indices(dim_size)
-        mask = Tensor.arange(start, stop, step).one_hot(dim_size).sum(0).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
+        dim_size = self.shape[dim]
+        start, stop, step = idx.indices(cast(SupportsIndex, dim_size))
+        mask = Tensor.arange(start, stop, step).unsqueeze(-1)._one_hot_along_dim(dim_size).sum(0).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
       elif idx is None:
         continue
       else:
@@ -1337,7 +1338,7 @@ class Tensor(MathTrait):
         res_shape.append(1)
       elif isinstance(idx, slice):
         dim_size = self.shape[dim]
-        start, stop, step = idx.indices(dim_size)
+        start, stop, step = idx.indices(cast(SupportsIndex, dim_size))
         size = (abs(stop - start) + abs(step) - 1) // abs(step)
         res_shape.append(size)
       elif idx is None:
@@ -1356,7 +1357,7 @@ class Tensor(MathTrait):
       if isinstance(idx, int):
         pass
       elif isinstance(idx, slice):
-        start, _, step = idx.indices(dim_size)
+        start, _, step = idx.indices(cast(SupportsIndex, dim_size))
         if step < 0:
           vb = vb.flip(dim)
         if abs(step) > 1:
