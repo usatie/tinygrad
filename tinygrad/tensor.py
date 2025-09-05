@@ -1284,7 +1284,7 @@ class Tensor(MathTrait):
 
     if (isinstance(indices, list) and all_int(indices)) or not isinstance(indices, (tuple, list)): indices = [indices]
     indices = list(indices)
-    if all(isinstance(i, (int, sint, slice)) for i in indices if i is not None):
+    if all(isinstance(i, (int, sint, slice)) or i is Ellipsis for i in indices if i is not None):
         # New setitem that supports slices and int only
       res = self.setitem(indices, v)
       self.assign(res)
@@ -1384,6 +1384,11 @@ class Tensor(MathTrait):
     return vb
 
   def setitem(self: Tensor, indices, v: Tensor):
+    if Ellipsis in indices:
+      ellipsis_pos = indices.index(Ellipsis)
+      num_specified = len([i for i in indices if i is not Ellipsis and i is not None])
+      num_ellipsis_dims = self.ndim - num_specified
+      indices = list(indices[:ellipsis_pos]) + [slice(None)]*num_ellipsis_dims + list(indices[ellipsis_pos+1:])
     mask = self.gen_mask(indices)
     vb = self.pad_values(v, indices)
     return mask.where(vb, self)
