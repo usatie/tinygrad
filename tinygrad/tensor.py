@@ -1127,11 +1127,10 @@ class Tensor(MathTrait):
     return X.shrink(tuple((-min(pB,0), min(pA+s,s)) for (pB,pA),s in zip(pX, X.shape)))
 
   # ***** movement high level ops *****
-
-  def _getitem(self, indices, v: Tensor|None = None) -> Tensor:
+  def _parse_indices(self, indices) -> list[dict[str, sint|Tensor|UOp|None]]:
     # wrap single index into a list
     if (isinstance(indices, list) and all_int(indices)) or not isinstance(indices, (tuple, list)): indices = [indices]
-    x, indices = self, list(indices)
+    indices = list(indices)
 
     # fill ellipsis or rest of indices with slice(None)
     if len(ellipsis_idx := [dim for dim, i in enumerate(indices) if i is Ellipsis]) > 1: raise IndexError("indices can only have a single ellipsis")
@@ -1176,6 +1175,11 @@ class Tensor(MathTrait):
         case _: raise IndexError(f"{type(index).__name__} indexing is not supported")
       indices_parsed.append({"index":index, "size":size, "boundary":tuple(boundary), "stride":stride})
       if index is not None: dim += 1
+    return indices_parsed
+
+  def _getitem(self, indices, v: Tensor|None = None) -> Tensor:
+    x = self
+    indices_parsed = self._parse_indices(indices)
 
     # movement op indexing
     if mops := [i for i in indices_parsed if i['index'] is not None]:
@@ -1278,13 +1282,116 @@ class Tensor(MathTrait):
     if not isinstance(v, Tensor): raise TypeError(f"can't set a {type(v).__name__} to a Tensor")
     if self.requires_grad or v.requires_grad: raise NotImplementedError("setitem with requires_grad is not supported")
 
-    res = self.realize()._getitem(indices, v)
-    # if shapes match and data is not shared it's a copy and we assign to self
-    if res.shape == self.shape and res.uop is not self.uop:
-      self.assign(res).realize()
-    else: # no copy, basic setitem
-      v = v.cast(res.dtype)._broadcast_to(_broadcast_shape(res.shape, v.shape)).contiguous()
-      res.assign(v).realize()
+    if (isinstance(indices, list) and all_int(indices)) or not isinstance(indices, (tuple, list)): indices = [indices]
+    indices = list(indices)
+    if all(isinstance(i, (int, sint, slice)) or i is Ellipsis for i in indices if i is not None):
+        # New setitem that supports slices and int only
+      res = self.setitem(indices, v)
+      self.assign(res)
+    else:
+      # Legacy advanced indexing setitem that supports Tensor indices
+      res = self.realize()._getitem(indices, v)
+      # if shapes match and data is not shared it's a copy and we assign to self
+      if res.shape == self.shape and res.uop is not self.uop:
+        self.assign(res).realize()
+      else: # no copy, basic setitem
+        v = v.cast(res.dtype)._broadcast_to(_broadcast_shape(res.shape, v.shape)).contiguous()
+        res.assign(v).realize()
+
+  def gen_mask(self, indices):
+    masks = []
+    dim = 0
+    for idx in indices:
+      if isinstance(idx, int):
+        # e.g. dim=1, idx=3, shape=(10,20,30,40,50)
+        #              () -> (20,) -> (1,20,1,1,1) -> (10,20,30,40,50)
+        dim_size = self.shape[dim]
+        mask = Tensor(idx)._one_hot_along_dim(dim_size).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
+      elif isinstance(idx, slice):
+        # e.g. dim=3, idx=slice(1,12,3) = [1,4,7,10], shape=(10,20,30,40,50)
+        #              () -> (4,) -> (4,20) -> (20,) -> (1,20,1,1,1) -> (10,20,30,40,50)
+        # TODO: Negative start/stop/step, but mask should be correct
+        # Negative start/stop is handled by slice.indices, but negative step could be tricky
+        dim_size = self.shape[dim]
+        start, stop, step = idx.indices(cast(SupportsIndex, dim_size))
+        mask = Tensor.arange(start, stop, step).unsqueeze(-1)._one_hot_along_dim(dim_size).sum(0)
+        mask = mask.reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
+      elif idx is None:
+        continue
+      else:
+        raise NotImplementedError(f"Indexing with {type(idx)} not supported")
+      masks.append(mask)
+      dim += 1
+    return functools.reduce(lambda x,y: x.mul(y), masks)
+
+  """
+  e.g.
+  x : (10,20,30,40,50)
+  v : (10, 1, 30, 4, 50) or broadcastable to this shape
+  x[:, 3, ..., 1:12:3] = v
+  """
+  def gen_index_shape(self, indices):
+    indices = list(indices) + [slice(None)]*(self.ndim - len([i for i in indices if i is not None]))
+    res_shape = []
+    dim = 0
+    for idx in indices:
+      if isinstance(idx, int):
+        res_shape.append(1)
+      elif isinstance(idx, slice):
+        dim_size = self.shape[dim]
+        start, stop, step = idx.indices(cast(SupportsIndex, dim_size))
+        size = (abs(stop - start) + abs(step) - 1) // abs(step)
+        res_shape.append(size)
+      elif idx is None:
+        res_shape.append(1)
+      else:
+        raise NotImplementedError(f"Indexing with {type(idx)} not supported")
+      if idx is not None: dim += 1
+    return tuple(res_shape)
+
+  def pad_values(self, v: Tensor, indices):
+    vshape = self.gen_index_shape(indices)
+    # e.g.
+    # v.shape = (1, 1, 4, 1) -> (10, 1, 30, 4, 50)
+    vb = v._broadcast_to(vshape)
+    dim = 0
+    for idx in indices:
+      if isinstance(idx, int):
+        pass
+      elif isinstance(idx, slice):
+        dim_size = self.shape[dim]
+        start, _, step = idx.indices(cast(SupportsIndex, dim_size))
+        if step < 0:
+          vb = vb.flip(dim)
+        if abs(step) > 1:
+          # (10,1,30,4,50) -> (10,1,30,12,50) -> (10,1,30,(1+12+17),50)
+          vb = vb.repeat_interleave(abs(step), dim=dim)
+          # e.g. dim=3, idx=slice(1,12,3) = [1,4,7,10], shape=(10,20,30,40,50)
+        # pads = (None, None, (1, 17), 0, None)
+        if step > 0:
+          pad = (start, dim_size - (start + vshape[dim]*step ))
+        else:
+          right_pad = dim_size - start - 1
+          left_pad = dim_size - vb.shape[dim] - right_pad
+          pad = (left_pad, right_pad)
+        pads = (None,) * dim + (pad, ) + (None,) * (vb.ndim - dim - 1)
+        vb = vb.pad(pads)
+      elif idx is None:
+        vb = vb.squeeze(dim)
+      else:
+        raise NotImplementedError(f"Indexing with {type(idx)} not supported")
+      if idx is not None: dim += 1
+    return vb
+
+  def setitem(self: Tensor, indices, v: Tensor):
+    if Ellipsis in indices:
+      ellipsis_pos = indices.index(Ellipsis)
+      num_specified = len([i for i in indices if i is not Ellipsis and i is not None])
+      num_ellipsis_dims = self.ndim - num_specified
+      indices = list(indices[:ellipsis_pos]) + [slice(None)]*num_ellipsis_dims + list(indices[ellipsis_pos+1:])
+    mask = self.gen_mask(indices)
+    vb = self.pad_values(v, indices)
+    return mask.where(vb, self)
 
   def gather(self:Tensor, dim:int, index:Tensor) -> Tensor:
     """
