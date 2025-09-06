@@ -188,6 +188,11 @@ class TestSetitem(unittest.TestCase):
     t[-2:-5] = Tensor.ones(0, 3, 3)
     np.testing.assert_allclose(t.numpy(), np.zeros((3,3,3)))
 
+  def test_setitem_slice_broadcast_minimal():
+    t = Tensor.zeros(6, 5, 4).contiguous()
+    v = Tensor.ones(6, 4)  # Missing middle dimension
+    t[:, 1, :] = v
+
 class TestWithGrad(unittest.TestCase):
   def test_no_requires_grad_works(self):
     z = Tensor.rand(8, 8)
