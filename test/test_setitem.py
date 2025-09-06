@@ -178,6 +178,12 @@ class TestSetitem(unittest.TestCase):
     t[idx] = val
     self.assertEqual(t.tolist(), [val]*idx_size+[idx_size])
 
+  def test_setitem_broadcast_fewer_dims(self):
+      target = Tensor.zeros(2, 3).contiguous()
+      value = Tensor.ones(2)
+      target[:, 1] = value    # Should broadcast (2,) to (2, 1)
+      np.testing.assert_allclose(target.numpy(), np.array([[0, 1, 0],[0, 1, 0]]))
+
 class TestWithGrad(unittest.TestCase):
   def test_no_requires_grad_works(self):
     z = Tensor.rand(8, 8)
