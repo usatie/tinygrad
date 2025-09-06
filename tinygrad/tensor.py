@@ -1351,9 +1351,12 @@ class Tensor(MathTrait):
 
   def pad_values(self, v: Tensor, indices):
     vshape = self.gen_index_shape(indices)
+    reduced_vshape = vshape
+    while len(reduced_vshape) > v.ndim and reduced_vshape[-1] == 1: reduced_vshape = reduced_vshape[:-1]
     # e.g.
     # v.shape = (1, 1, 4, 1) -> (10, 1, 30, 4, 50)
-    vb = v._broadcast_to(vshape)
+    vb = v._broadcast_to(reduced_vshape)
+    while len(vshape) > vb.ndim: vb = vb.unsqueeze(-1)
     dim = 0
     for idx in indices:
       if isinstance(idx, int):
