@@ -179,14 +179,14 @@ class TestSetitem(unittest.TestCase):
     self.assertEqual(t.tolist(), [val]*idx_size+[idx_size])
 
   def test_setitem_broadcast_fewer_dims(self):
-      t = Tensor.zeros(2, 3).contiguous()
-      t[:, 1] = Tensor.ones(2)
-      np.testing.assert_allclose(t.numpy(), np.array([[0, 1, 0],[0, 1, 0]]))
+    t = Tensor.zeros(2, 3).contiguous()
+    t[:, 1] = Tensor.ones(2)
+    np.testing.assert_allclose(t.numpy(), np.array([[0, 1, 0],[0, 1, 0]]))
 
   def test_setitem_empty(self):
-      t = Tensor.zeros(3, 3, 3).contiguous()
-      t[-2:-5] = Tensor.ones(0, 3, 3)
-      np.testing.assert_allclose(t.numpy(), np.zeros((3,3,3)))
+    t = Tensor.zeros(3, 3, 3).contiguous()
+    t[-2:-5] = Tensor.ones(0, 3, 3)
+    np.testing.assert_allclose(t.numpy(), np.zeros((3,3,3)))
 
 class TestWithGrad(unittest.TestCase):
   def test_no_requires_grad_works(self):
