@@ -36,6 +36,18 @@ class TestSetitem(unittest.TestCase):
     t[:3] *= 10
     self.assertListEqual(t.tolist(), [0, 10, 20, 3, 4, 5, 6, 7, 8, 9])
 
+  def test_setitem_inplace_mul_ok(self):
+    t = Tensor.arange(10).realize()
+    t[:3] = t[:3] * 10
+    self.assertListEqual(t.tolist(), [0, 10, 20, 3, 4, 5, 6, 7, 8, 9])
+
+  def test_setitem_inplace_mul_internal(self):
+    t = Tensor.arange(10).realize()
+    s = t[:3]
+    s *= 10
+    t[:3] = s
+    self.assertListEqual(t.tolist(), [0, 10, 20, 3, 4, 5, 6, 7, 8, 9])
+
   def test_setitem_into_unrealized(self):
     t = Tensor.arange(4).reshape(2, 2)
     t[1] = 5
