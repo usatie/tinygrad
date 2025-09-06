@@ -3892,7 +3892,7 @@ class Tensor(MathTrait):
 
   def __iadd__(self, x) -> Tensor: return self.assign(self.add(x))
   def __isub__(self, x) -> Tensor: return self.assign(self.sub(x))
-  def __imul__(self, x) -> Tensor: return self.replace(self.mul(x))
+  def __imul__(self, x) -> Tensor: return self.assign(self.mul(x))
   def __ipow__(self, x) -> Tensor: return self.assign(self.pow(x))
   def __itruediv__(self, x) -> Tensor: return self.assign(self.div(x))
   def __ifloordiv__(self, x) -> Tensor: return self.assign(self.__floordiv__(x))
