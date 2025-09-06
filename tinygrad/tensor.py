@@ -1358,9 +1358,7 @@ class Tensor(MathTrait):
     dim = 0
     for idx in indices:
       if isinstance(idx, int):
-        dim_size = self.shape[dim]
-        if dim_size > 0:
-          vb = vb.repeat_interleave(dim_size, dim=dim)
+        pass
       elif isinstance(idx, slice):
         dim_size = self.shape[dim]
         start, _, step = idx.indices(cast(SupportsIndex, dim_size))
