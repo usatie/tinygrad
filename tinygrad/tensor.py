@@ -1306,6 +1306,7 @@ class Tensor(MathTrait):
         # e.g. dim=1, idx=3, shape=(10,20,30,40,50)
         #              () -> (20,) -> (1,20,1,1,1) -> (10,20,30,40,50)
         dim_size = self.shape[dim]
+        if idx < 0: idx += dim_size
         mask = Tensor(idx)._one_hot_along_dim(dim_size).reshape((1,)*dim + (dim_size,) + (1,)*(self.ndim-dim-1)).expand(self.shape)
       elif isinstance(idx, slice):
         # e.g. dim=3, idx=slice(1,12,3) = [1,4,7,10], shape=(10,20,30,40,50)
@@ -1331,7 +1332,6 @@ class Tensor(MathTrait):
   x[:, 3, ..., 1:12:3] = v
   """
   def gen_index_shape(self, indices):
-    indices = list(indices) + [slice(None)]*(self.ndim - len([i for i in indices if i is not None]))
     res_shape = []
     dim = 0
     for idx in indices:
@@ -1358,7 +1358,9 @@ class Tensor(MathTrait):
     dim = 0
     for idx in indices:
       if isinstance(idx, int):
-        pass
+        dim_size = self.shape[dim]
+        if dim_size > 0:
+          vb = vb.repeat_interleave(dim_size, dim=dim)
       elif isinstance(idx, slice):
         dim_size = self.shape[dim]
         start, _, step = idx.indices(cast(SupportsIndex, dim_size))
@@ -1370,11 +1372,12 @@ class Tensor(MathTrait):
           # e.g. dim=3, idx=slice(1,12,3) = [1,4,7,10], shape=(10,20,30,40,50)
         # pads = (None, None, (1, 17), 0, None)
         if step > 0:
-          pad = (start, dim_size - (start + vshape[dim]*step ))
+          left_pad = start
+          right_pad = dim_size - vb.shape[dim] - left_pad
         else:
           right_pad = dim_size - start - 1
           left_pad = dim_size - vb.shape[dim] - right_pad
-          pad = (left_pad, right_pad)
+        pad = (left_pad, right_pad)
         pads = (None,) * dim + (pad, ) + (None,) * (vb.ndim - dim - 1)
         vb = vb.pad(pads)
       elif idx is None:
@@ -1390,6 +1393,7 @@ class Tensor(MathTrait):
       num_specified = len([i for i in indices if i is not Ellipsis and i is not None])
       num_ellipsis_dims = self.ndim - num_specified
       indices = list(indices[:ellipsis_pos]) + [slice(None)]*num_ellipsis_dims + list(indices[ellipsis_pos+1:])
+    indices = list(indices) + [slice(None)]*(self.ndim - len([i for i in indices if i is not None]))
     mask = self.gen_mask(indices)
     vb = self.pad_values(v, indices)
     return mask.where(vb, self)
