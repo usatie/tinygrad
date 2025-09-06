@@ -14,6 +14,8 @@ class TestSetitem(unittest.TestCase):
       ((4,4,4,4), (Ellipsis, slice(1,3), slice(None)), Tensor(4)),
       ((4,4,4,4), (Ellipsis, slice(1,3)), 4),
       ((4,4,4,4), (2, slice(1,3), None, 1), 4),
+      ((4,4,4,4), (2, slice(1,3), None, 1, slice(0, 4, 1)), 4),
+      ((4,4,4,4), (2, slice(1,3), None, 1, slice(3, None, -1)), 4),
       ((4,4,4,4), (slice(1,3), slice(None), slice(0,4,2)), 4),
       ((4,4,4,4), (slice(1,3), slice(None), slice(None), slice(0,3)), 4),
       ((6,6), (slice(1,5,2), slice(0,5,3)), 1.0),
@@ -190,11 +192,18 @@ class TestSetitem(unittest.TestCase):
 
   def test_setitem_slice_broadcast_minimal(self):
     t = Tensor.zeros(6, 5, 4).contiguous()
-    v = Tensor.ones(6, 4)  # Missing middle dimension
-    t[:, 1, :] = v
+    t[:, 1, :] = Tensor.ones(6, 4)
     n = np.zeros((6, 5, 4))
-    n[:, 1, :] = 1
+    n[:, 1, :] = np.ones((6, 4))
     np.testing.assert_allclose(t.numpy(), n)
+
+  def test_setitem_none(self):
+    t = Tensor.zeros(3, 3).contiguous()
+    t[1:2, None, -1] = Tensor.ones(1, 1)
+    n = np.zeros((3, 3))
+    n[1:2, None, -1] = np.ones((1, 1))
+    np.testing.assert_allclose(t.numpy(), n)
+
 
 class TestWithGrad(unittest.TestCase):
   def test_no_requires_grad_works(self):
