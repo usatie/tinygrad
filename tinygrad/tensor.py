@@ -1340,7 +1340,8 @@ class Tensor(MathTrait):
       elif isinstance(idx, slice):
         dim_size = self.shape[dim]
         start, stop, step = idx.indices(cast(SupportsIndex, dim_size))
-        size = (abs(stop - start) + abs(step) - 1) // abs(step)
+        if (stop - start) * step < 0: size = 0
+        else: size = (abs(stop - start) + abs(step) - 1) // abs(step)
         res_shape.append(size)
       elif idx is None:
         res_shape.append(1)
