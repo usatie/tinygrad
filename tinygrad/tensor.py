@@ -1127,10 +1127,11 @@ class Tensor(MathTrait):
     return X.shrink(tuple((-min(pB,0), min(pA+s,s)) for (pB,pA),s in zip(pX, X.shape)))
 
   # ***** movement high level ops *****
-  def _parse_indices(self, indices) -> list[dict[str, sint|Tensor|UOp|None]]:
+
+  def _getitem(self, indices, v: Tensor|None = None) -> Tensor:
     # wrap single index into a list
     if (isinstance(indices, list) and all_int(indices)) or not isinstance(indices, (tuple, list)): indices = [indices]
-    indices = list(indices)
+    x, indices = self, list(indices)
 
     # fill ellipsis or rest of indices with slice(None)
     if len(ellipsis_idx := [dim for dim, i in enumerate(indices) if i is Ellipsis]) > 1: raise IndexError("indices can only have a single ellipsis")
@@ -1175,11 +1176,6 @@ class Tensor(MathTrait):
         case _: raise IndexError(f"{type(index).__name__} indexing is not supported")
       indices_parsed.append({"index":index, "size":size, "boundary":tuple(boundary), "stride":stride})
       if index is not None: dim += 1
-    return indices_parsed
-
-  def _getitem(self, indices, v: Tensor|None = None) -> Tensor:
-    x = self
-    indices_parsed = self._parse_indices(indices)
 
     # movement op indexing
     if mops := [i for i in indices_parsed if i['index'] is not None]:
